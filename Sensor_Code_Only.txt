@@ -1,0 +1,88 @@
+Sensor testing code - 
+
+#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include "MAX30105.h"
+
+#define SDA_PIN 21
+#define SCL_PIN 22
+#define LED_PIN 2
+
+Adafruit_MPU6050 mpu;
+MAX30105 max30102;
+
+bool mpuOK = false;
+bool maxOK = false;
+
+void setup() {
+  Serial.begin(9600);
+  delay(2000);
+
+  pinMode(LED_PIN, OUTPUT);
+  digitalWrite(LED_PIN, LOW);
+
+  Wire.begin(SDA_PIN, SCL_PIN);
+  Wire.setClock(100000);
+
+  Serial.println("===== FINAL SENSOR TEST =====");
+
+  // ---------- MPU6050 (ADDRESS = 0x69) ----------
+  if (mpu.begin(0x69)) {
+    Serial.println("✅ MPU6050 FOUND (0x69)");
+    mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+    mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+    mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+    mpuOK = true;
+  } else {
+    Serial.println("❌ MPU6050 NOT FOUND");
+  }
+
+  // ---------- MAX30102 ----------
+  if (max30102.begin(Wire, I2C_SPEED_STANDARD)) {
+    Serial.println("✅ MAX30102 FOUND (0x57)");
+    max30102.setup();
+    max30102.setPulseAmplitudeRed(0x1F);
+    max30102.setPulseAmplitudeIR(0x1F);
+    maxOK = true;
+  } else {
+    Serial.println("❌ MAX30102 NOT FOUND");
+  }
+
+  Serial.println("============================");
+}
+
+void loop() {
+
+  if (!mpuOK || !maxOK) {
+    digitalWrite(LED_PIN, HIGH);
+    Serial.println("⚠ SENSOR INIT FAILED");
+    delay(2000);
+    return;
+  }
+
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+
+  float accelMag = sqrt(
+    a.acceleration.x * a.acceleration.x +
+    a.acceleration.y * a.acceleration.y +
+    a.acceleration.z * a.acceleration.z
+  );
+
+  long irValue = max30102.getIR();
+
+  Serial.print("Accel Mag: ");
+  Serial.print(accelMag);
+  Serial.print(" | IR: ");
+  Serial.println(irValue);
+
+  // LED demo logic
+  if (irValue < 5000) {
+    digitalWrite(LED_PIN, HIGH);   // ALERT
+  } else {
+    digitalWrite(LED_PIN, LOW);    // NORMAL
+  }
+
+  delay(1000);
+}
